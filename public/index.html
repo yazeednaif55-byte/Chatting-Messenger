@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chatting</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+    body { background-color: #f4f7f6; display: flex; justify-content: center; align-items: center; height: 100vh; }
+    .app-container { width: 100%; max-width: 420px; height: 100%; max-height: 850px; background: white; display: flex; flex-direction: column; position: relative; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+    .header { padding: 20px; text-align: center; border-bottom: 1px solid #eee; background: #fff; }
+    .header h2 { font-size: 22px; color: #0072FF; }
+    .chat-list { flex: 1; overflow-y: auto; padding: 15px; }
+    .chat-item { display: flex; align-items: center; padding: 12px; border-bottom: 1px solid #f9f9f9; cursor: pointer; border-radius: 10px; }
+    .chat-item:hover { background: #f0f4f8; }
+    .chat-info h4 { font-size: 16px; color: #333; }
+    .chat-info p { font-size: 13px; color: #777; margin-top: 3px; }
+
+    /* زر الـ + والقائمة المنبثقة للوسائط */
+    .floating-action { position: absolute; bottom: 80px; left: 20px; z-index: 100; }
+    .plus-btn { 
+      width: 50px; height: 50px; border-radius: 50%; background: #0072FF; 
+      color: white; border: none; font-size: 28px; cursor: pointer; 
+      box-shadow: 0 4px 10px rgba(0,114,255,0.3); display: flex; align-items: center; justify-content: center; 
+    }
+    .media-menu { 
+      display: none; position: absolute; bottom: 60px; left: 0; 
+      background: white; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.15); 
+      width: 150px; overflow: hidden; text-align: right; z-index: 101; 
+    }
+    .media-menu label, .media-menu div { 
+      display: block; padding: 12px 15px; cursor: pointer; 
+      border-bottom: 1px solid #f0f0f0; font-size: 14px; color: #333; 
+    }
+    .media-menu label:hover, .media-menu div:hover { background-color: #f4f7f6; }
+
+    /* شاشة المكالمة */
+    #callScreen { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: #111; z-index: 9999; }
+    #callStatus { position: absolute; top: 40px; width: 100%; text-align: center; color: white; font-size: 18px; font-weight: bold; z-index: 10000; }
+    #remoteVideo { width: 100%; height: 100%; object-fit: cover; }
+    #localVideo { width: 100px; height: 150px; position: absolute; bottom: 100px; right: 20px; border-radius: 12px; border: 2px solid #fff; object-fit: cover; z-index: 10001; }
+    .call-controls { position: absolute; bottom: 30px; left: 0; right: 0; display: flex; justify-content: center; gap: 15px; z-index: 10002; }
+    .call-controls button { padding: 12px 18px; border-radius: 25px; border: none; background: #333; color: white; font-size: 14px; cursor: pointer; }
+    .call-controls .danger-btn { background: #e74c3c; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <div class="header">
+      <h2>Chatting</h2>
+    </div>
+
+    <div class="chat-list" id="chatList">
+      <p style="text-align: center; color: #999; margin-top: 20px;">جاري تحميل المستخدمين...</p>
+    </div>
+
+    <!-- زر الـ + وقائمة الوسائط (صور، فيديو، GIF) -->
+    <div class="floating-action">
+      <button class="plus-btn" onclick="toggleAddMenu()">+</button>
+      <div id="mediaAddMenu" class="media-menu">
+        <label for="imageInput">🖼️ الصور</label>
+        <input type="file" id="imageInput" accept="image/*" style="display: none;" onchange="sendMediaFile(this, 'image')">
+        
+        <label for="videoInput">📹 الفيديو</label>
+        <input type="file" id="videoInput" accept="video/*" style="display: none;" onchange="sendMediaFile(this, 'video')">
+        
+        <div onclick="selectGif()">🎬 GIF</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- شاشة المكالمة -->
+  <div id="callScreen">
+    <div id="callStatus">جاري الاتصال...</div>
+    <video id="remoteVideo" autoplay playsinline></video>
+    <video id="localVideo" autoplay playsinline muted></video>
+    
+    <div class="call-controls">
+      <button id="toggleMicBtn" onclick="toggleMicrophone()">🎤 كتم المايك</button>
+      <button id="toggleCamBtn" onclick="toggleCamera()">📹 إيقاف الكاميرا</button>
+      <button id="endCallBtn" class="danger-btn" onclick="endCall()">📞 إلغاء المكالمة</button>
+    </div>
+  </div>
+
+  <script>
+    const socket = io();
+    let localStream, peerConnection, targetUserId;
+
+    const myUsername = prompt("أدخل اسم المستخدم الخاص بك:") || "User_" + Math.floor(Math.random() * 1000);
+    socket.emit('register', myUsername);
+
+    socket.on('onlineUsers', (users) => {
+      const chatList = document.getElementById('chatList');
+      chatList.innerHTML = '';
+      
+      const otherUsers = users.filter(u => u !== myUsername);
+      if(otherUsers.length === 0) {
+        chatList.innerHTML = '<p style="text-align: center; color: #777; margin-top: 20px;">لا يوجد مستخدمين متصلين حالياً.</p>';
+        return;
+      }
+
+      otherUsers.forEach(user => {
+        chatList.innerHTML += `
+          <div class="chat-item" onclick="startCall('${user}')">
+            <div class="chat-info">
+              <h4>${user}</h4>
+              <p>اضغط لبدء المكالمة</p>
+            </div>
+          </div>
+        `;
+      });
+    });
+
+    function toggleAddMenu() {
+      const menu = document.getElementById('mediaAddMenu');
+      menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+    }
+
+    function sendMediaFile(input, type) {
+      if (input.files && input.files[0]) {
+        console.log(`تم اختيار ${type}:`, input.files[0].name);
+        document.getElementById('mediaAddMenu').style.display = 'none';
+        alert(`تم اختيار ملف ${type} بنجاح`);
+      }
+    }
+
+    function selectGif() {
+      document.getElementById('mediaAddMenu').style.display = 'none';
+      alert("مكتبة الـ GIF جاهزة للاستخدام");
+    }
+
+    async function startCall(user) {
+      targetUserId = user;
+      document.getElementById('callScreen').style.display = 'block';
+      document.getElementById('callStatus').innerText = `جاري الاتصال بـ ${user}...`;
+
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        document.getElementById('localVideo').srcObject = localStream;
+
+        peerConnection = new RTCPeerConnection({
+          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        });
+
+        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+        peerConnection.ontrack = (event) => {
+          document.getElementById('remoteVideo').srcObject = event.streams[0];
+          document.getElementById('callStatus').innerText = "المكالمة قائمة";
+        };
+
+        peerConnection.onicecandidate = (event) => {
+          if (event.candidate) {
+            socket.emit('ice-candidate', { candidate: event.candidate, to: targetUserId });
+          }
+        };
+
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        socket.emit('offer', { offer: offer, to: targetUserId });
+
+      } catch (err) {
+        console.error(err);
+        alert("تعذر الوصول إلى الكاميرا أو المايك.");
+      }
+    }
+
+    socket.on('offer', async (data) => {
+      targetUserId = data.from;
+      document.getElementById('callScreen').style.display = 'block';
+      document.getElementById('callStatus').innerText = `مكالمة واردة من ${data.from}...`;
+
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        document.getElementById('localVideo').srcObject = localStream;
+
+        peerConnection = new RTCPeerConnection({
+          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        });
+
+        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+        peerConnection.ontrack = (event) => {
+          document.getElementById('remoteVideo').srcObject = event.streams[0];
+          document.getElementById('callStatus').innerText = "المكالمة قائمة";
+        };
+
+        peerConnection.onicecandidate = (event) => {
+          if (event.candidate) {
+            socket.emit('ice-candidate', { candidate: event.candidate, to: targetUserId });
+          }
+        };
+
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        socket.emit('answer', { answer: answer, to: targetUserId });
+
+      } catch (err) {
+        console.error(err);
+      }
+    });
+
+    socket.on('answer', async (data) => {
+      if (peerConnection) {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+      }
+    });
+
+    socket.on('ice-candidate', async (data) => {
+      if (peerConnection && data.candidate) {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+      }
+    });
+
+    function endCall() {
+      if (socket && targetUserId) {
+        socket.emit('endCall', { to: targetUserId });
+      }
+      stopMediaStreams();
+      document.getElementById('callStatus').innerText = "تم إلغاء المكالمة";
+      setTimeout(() => {
+        document.getElementById('callScreen').style.display = 'none';
+      }, 1000);
+    }
+
+    socket.on('callEnded', () => {
+      stopMediaStreams();
+      document.getElementById('callStatus').innerText = "تم قفل المكالمة من الطرف الآخر";
+      setTimeout(() => {
+        document.getElementById('callScreen').style.display = 'none';
+      }, 1200);
+    });
+
+    function stopMediaStreams() {
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
+      }
+      const localVideo = document.getElementById('localVideo');
+      const remoteVideo = document.getElementById('remoteVideo');
+      if (localVideo) localVideo.srcObject = null;
+      if (remoteVideo) remoteVideo.srcObject = null;
+    }
+
+    function toggleMicrophone() {
+      if (localStream) {
+        const track = localStream.getAudioTracks()[0];
+        if (track) {
+          track.enabled = !track.enabled;
+          document.getElementById('toggleMicBtn').innerText = track.enabled ? '🎤 كتم المايك' : '🎙️ تشغيل المايك';
+        }
+      }
+    }
+
+    function toggleCamera() {
+      if (localStream) {
+        const track = localStream.getVideoTracks()[0];
+        if (track) {
+          track.enabled = !track.enabled;
+          document.getElementById('toggleCamBtn').innerText = track.enabled ? '📹 إيقاف الكاميرا' : '📷 تفعيل الكاميرا';
+        }
+      }
+    }
+
+    window.onclick = function(event) {
+      if (!event.target.matches('.plus-btn')) {
+        const menu = document.getElementById('mediaAddMenu');
+        if (menu && menu.style.display === 'block') {
+          menu.style.display = 'none';
+        }
+      }
+    }
+  </script>
+</body>
+</html>
