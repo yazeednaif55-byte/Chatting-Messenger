@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تطبيق المحادثات والمكالمات الفورية</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        * { box-sizing: border-box; font-family: 'Cairo', sans-serif; margin: 0; padding: 0; }
+        body { background: #090d16; color: #f1f5f9; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* شاشة تسجيل الدخول */
+        #login-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(9, 13, 22, 0.95); backdrop-filter: blur(10px); z-index: 1000; display: flex; justify-content: center; align-items: center; }
+        .login-card { background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255, 255, 255, 0.1); padding: 40px; border-radius: 24px; width: 90%; max-width: 400px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
+        .login-card h2 { color: #38bdf8; font-size: 24px; margin-bottom: 10px; font-weight: 700; }
+        .login-card p { color: #94a3b8; font-size: 14px; margin-bottom: 25px; }
+        .login-input { width: 100%; padding: 14px 20px; background: #0f172a; border: 1px solid #334155; border-radius: 14px; color: #fff; font-size: 15px; margin-bottom: 20px; outline: none; text-align: center; }
+        .btn-main { width: 100%; padding: 14px; background: linear-gradient(135deg, #0284c7, #2563eb); color: white; border: none; border-radius: 14px; font-weight: 700; font-size: 16px; cursor: pointer; }
+
+        /* الهيدر */
+        #header { background: rgba(30, 41, 59, 0.6); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; }
+        .user-info { display: flex; align-items: center; gap: 12px; }
+        .avatar { width: 40px; height: 40px; background: linear-gradient(135deg, #38bdf8, #818cf8); border-radius: 50%; display: flex; justify-content: center; align-items: center; font-weight: bold; color: white; }
+        .user-details h3 { font-size: 16px; color: #f8fafc; }
+        .user-details span { font-size: 12px; color: #4ade80; display: flex; align-items: center; gap: 4px; }
+        .user-details span::before { content: ''; width: 8px; height: 8px; background: #4ade80; border-radius: 50%; display: inline-block; }
+        .header-actions { display: flex; gap: 10px; }
+        .btn-call { background: #10b981; color: white; border: none; padding: 10px 20px; border-radius: 12px; font-weight: 700; cursor: pointer; }
+        .btn-logout { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 10px 15px; border-radius: 12px; font-weight: 600; cursor: pointer; }
+
+        /* الشات */
+        #messages-container { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
+        .message-box { max-width: 70%; padding: 14px 18px; border-radius: 20px; font-size: 15px; line-height: 1.6; word-break: break-word; }
+        .message-incoming { background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.05); align-self: flex-start; border-bottom-right-radius: 4px; color: #f1f5f9; }
+        .message-outgoing { background: linear-gradient(135deg, #0284c7, #2563eb); align-self: flex-end; border-bottom-left-radius: 4px; color: white; }
+        .message-author { font-size: 12px; font-weight: 700; margin-bottom: 4px; opacity: 0.8; display: block; }
+        #chat-form { background: rgba(30, 41, 59, 0.6); backdrop-filter: blur(12px); padding: 15px 25px; display: flex; gap: 12px; border-top: 1px solid rgba(255, 255, 255, 0.05); }
+        #message-input { flex: 1; background: #0f172a; border: 1px solid #334155; padding: 14px 20px; border-radius: 16px; color: white; font-size: 15px; outline: none; }
+        .btn-send { background: #0284c7; color: white; border: none; padding: 0 25px; border-radius: 16px; font-weight: 700; cursor: pointer; }
+
+        /* نافذة طلب الاتصال */
+        #call-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(8px); z-index: 2000; justify-content: center; align-items: center; }
+        .modal-card { background: rgba(30, 41, 59, 0.9); border: 1px solid rgba(255, 255, 255, 0.1); padding: 35px; border-radius: 24px; text-align: center; width: 90%; max-width: 360px; box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5); }
+        .caller-avatar { width: 70px; height: 70px; background: linear-gradient(135deg, #10b981, #059669); border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 30px; margin: 0 auto 20px; }
+        .modal-card h3 { font-size: 18px; margin-bottom: 25px; color: #f8fafc; }
+        .modal-actions { display: flex; gap: 15px; justify-content: center; }
+        .btn-accept { background: #10b981; color: white; border: none; padding: 12px 25px; border-radius: 14px; font-weight: 700; cursor: pointer; flex: 1; }
+        .btn-reject { background: #ef4444; color: white; border: none; padding: 12px 25px; border-radius: 14px; font-weight: 700; cursor: pointer; flex: 1; }
+
+        /* واجهة الاتصال */
+        #video-screen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #090d16; z-index: 3000; flex-direction: column; }
+        .video-container { flex: 1; position: relative; display: flex; justify-content: center; align-items: center; background: #000; }
+        #remote-video { width: 100%; height: 100%; object-fit: cover; }
+        #local-video { position: absolute; top: 20px; right: 20px; width: 120px; height: 160px; background: #1e293b; border-radius: 16px; object-fit: cover; border: 2px solid rgba(255, 255, 255, 0.2); }
+        .call-controls { background: rgba(15, 23, 42, 0.9); padding: 20px; display: flex; justify-content: center; gap: 20px; }
+        .btn-ctrl { width: 50px; height: 50px; border-radius: 50%; border: none; background: #334155; color: white; font-size: 18px; cursor: pointer; }
+        .btn-ctrl.off { background: #ef4444; }
+        .btn-end-call { background: #ef4444; width: 60px; height: 60px; border-radius: 50%; border: none; color: white; font-size: 22px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <!-- تسجيل الدخول -->
+    <div id="login-screen">
+        <div class="login-card">
+            <h2>مرحباً بك! 👋</h2>
+            <p>أدخل اسمك للانضمام للمحادثة</p>
+            <input type="text" id="username-input" class="login-input" placeholder="اسمك الكريم..." autocomplete="off">
+            <button class="btn-main" onclick="saveUser()">دخول التطبيق</button>
+        </div>
+    </div>
+
+    <!-- الهيدر -->
+    <div id="header">
+        <div class="user-info">
+            <div class="avatar" id="user-avatar">?</div>
+            <div class="user-details">
+                <h3 id="user-display-name">مستخدم</h3>
+                <span>متصل الان</span>
+            </div>
+        </div>
+        <div class="header-actions">
+            <button class="btn-call" onclick="initiateCall()">📞 بدء مكالمة</button>
+            <button class="btn-logout" onclick="changeName()">تغيير الاسم</button>
+        </div>
+    </div>
+
+    <!-- الرسائل -->
+    <div id="messages-container"></div>
+
+    <form id="chat-form" onsubmit="sendMessage(event)">
+        <input type="text" id="message-input" placeholder="اكتب رسالتك هنا..." autocomplete="off" required>
+        <button type="submit" class="btn-send">إرسال</button>
+    </form>
+
+    <!-- طلب الاتصال الوارد -->
+    <div id="call-modal">
+        <div class="modal-card">
+            <div class="caller-avatar">📞</div>
+            <h3 id="caller-name-text">مستخدم يطلب الانضمام للمكالمة...</h3>
+            <div class="modal-actions">
+                <button class="btn-accept" onclick="acceptIncomingCall()">قبول</button>
+                <button class="btn-reject" onclick="rejectIncomingCall()">رفض</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- شاشة الاتصال -->
+    <div id="video-screen">
+        <div class="video-container">
+            <video id="remote-video" autoplay playsinline></video>
+            <video id="local-video" autoplay playsinline muted></video>
+        </div>
+        <div class="call-controls">
+            <button class="btn-ctrl" id="btn-toggle-audio" onclick="toggleAudio()">🎤</button>
+            <button class="btn-end-call" onclick="endCall()">🛑</button>
+            <button class="btn-ctrl" id="btn-toggle-video" onclick="toggleVideo()">📹</button>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let currentUser = '';
+        let targetSocketId = null;
+        let localStream = null;
+        let peerConnection = null;
+        let audioEnabled = true;
+        let videoEnabled = true;
+
+        const rtcConfig = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ]
+        };
+
+        window.onload = () => {
+            const savedName = localStorage.getItem('chat_username');
+            if (savedName) {
+                currentUser = savedName;
+                document.getElementById('login-screen').style.display = 'none';
+                updateUserUI();
+            }
+        };
+
+        function saveUser() {
+            const input = document.getElementById('username-input').value.trim();
+            if (input) {
+                currentUser = input;
+                localStorage.setItem('chat_username', input);
+                document.getElementById('login-screen').style.display = 'none';
+                updateUserUI();
+            }
+        }
+
+        function changeName() {
+            localStorage.removeItem('chat_username');
+            document.getElementById('login-screen').style.display = 'flex';
+        }
+
+        function updateUserUI() {
+            document.getElementById('user-display-name').innerText = currentUser;
+            document.getElementById('user-avatar').innerText = currentUser.charAt(0).toUpperCase();
+        }
+
+        function sendMessage(e) {
+            e.preventDefault();
+            const input = document.getElementById('message-input');
+            if (input.value.trim() && currentUser) {
+                socket.emit('chat message', { name: currentUser, text: input.value.trim() });
+                input.value = '';
+            }
+        }
+
+        socket.on('chat message', (data) => {
+            const container = document.getElementById('messages-container');
+            const msgBox = document.createElement('div');
+            const isMe = data.name === currentUser;
+
+            msgBox.className = `message-box ${isMe ? 'message-outgoing' : 'message-incoming'}`;
+            msgBox.innerHTML = `<span class="message-author">${data.name}</span><div>${data.text}</div>`;
+            container.appendChild(msgBox);
+            container.scrollTop = container.scrollHeight;
+        });
+
+        // طلب اتصال
+        function initiateCall() {
+            if (!currentUser) return;
+            socket.emit('call-request', { name: currentUser });
+            alert('جاري إرسال طلب الاتصال...');
+        }
+
+        socket.on('incoming-call', (data) => {
+            targetSocketId = data.from;
+            document.getElementById('caller-name-text').innerText = `${data.name} يطلب الانضمام للمكالمة!`;
+            document.getElementById('call-modal').style.display = 'flex';
+        });
+
+        async function acceptIncomingCall() {
+            document.getElementById('call-modal').style.display = 'none';
+            socket.emit('call-response', { to: targetSocketId, accepted: true });
+            await startLocalMedia();
+            createPeerConnection();
+        }
+
+        function rejectIncomingCall() {
+            document.getElementById('call-modal').style.display = 'none';
+            socket.emit('call-response', { to: targetSocketId, accepted: false });
+        }
+
+        socket.on('call-status', async (data) => {
+            if (data.accepted) {
+                targetSocketId = data.from;
+                await startLocalMedia();
+                createPeerConnection();
+
+                // إنشاء Offer وإرساله
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                socket.emit('webrtc-offer', { to: targetSocketId, sdp: offer });
+            } else {
+                alert('تم رفض الاتصال.');
+            }
+        });
+
+        // إعداد WebRTC
+        async function startLocalMedia() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById('local-video').srcObject = localStream;
+                document.getElementById('video-screen').style.display = 'flex';
+            } catch (err) {
+                alert('يرجى السماح بصلاحيات الكاميرا والمايك من المتصفح!');
+            }
+        }
+
+        function createPeerConnection() {
+            peerConnection = new RTCPeerConnection(rtcConfig);
+
+            // إضافة المسارات (صوت وصورة)
+            localStream.getTracks().forEach(track => {
+                peerConnection.addTrack(track, localStream);
+            });
+
+            // استقبال الصوت والصورة من الطرف الآخر
+            peerConnection.ontrack = (event) => {
+                document.getElementById('remote-video').srcObject = event.streams[0];
+            };
+
+            // نقل بيانات الشبكة (ICE Candidates)
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.emit('webrtc-ice-candidate', { to: targetSocketId, candidate: event.candidate });
+                }
+            };
+        }
+
+        // استقبال Offer / Answer / ICE Candidates
+        socket.on('webrtc-offer', async (data) => {
+            if (!peerConnection) createPeerConnection();
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            socket.emit('webrtc-answer', { to: targetSocketId, sdp: answer });
+        });
+
+        socket.on('webrtc-answer', async (data) => {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+        });
+
+        socket.on('webrtc-ice-candidate', async (data) => {
+            if (peerConnection) {
+                await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+            }
+        });
+
+        function toggleAudio() {
+            if (localStream) {
+                audioEnabled = !audioEnabled;
+                localStream.getAudioTracks()[0].enabled = audioEnabled;
+                document.getElementById('btn-toggle-audio').classList.toggle('off', !audioEnabled);
+            }
+        }
+
+        function toggleVideo() {
+            if (localStream) {
+                videoEnabled = !videoEnabled;
+                localStream.getVideoTracks()[0].enabled = videoEnabled;
+                document.getElementById('btn-toggle-video').classList.toggle('off', !videoEnabled);
+            }
+        }
+
+        function endCall() {
+            if (localStream) localStream.getTracks().forEach(track => track.stop());
+            if (peerConnection) peerConnection.close();
+            document.getElementById('video-screen').style.display = 'none';
+            location.reload();
+        }
+    </script>
+</body>
+</html>
