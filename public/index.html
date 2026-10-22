@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تطبيق دردشة فورية</title>
+    <style>
+        body { font-family: Tahoma, sans-serif; background: #f0f2f5; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
+        #header { background: #0084ff; color: white; padding: 15px; text-align: center; font-size: 18px; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        #messages { list-style-type: none; margin: 0; padding: 20px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        #messages li { padding: 10px 15px; border-radius: 15px; max-width: 70%; word-break: break-word; line-height: 1.4; position: relative; }
+        .message-incoming { background: white; align-self: flex-start; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .message-outgoing { background: #0084ff; color: white; align-self: flex-end; }
+        .message-user { font-size: 11px; opacity: 0.8; margin-bottom: 3px; display: block; font-weight: bold; }
+        #form { background: white; padding: 15px; display: flex; gap: 10px; box-shadow: 0 -2px 5px rgba(0,0,0,0.05); }
+        #input-name { width: 100px; padding: 10px; border: 1px solid #ddd; border-radius: 20px; outline: none; text-align: center; }
+        #input-message { flex: 1; padding: 10px 15px; border: 1px solid #ddd; border-radius: 20px; outline: none; }
+        #form button { background: #0084ff; color: white; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; font-weight: bold; }
+        #form button:hover { background: #006dd9; }
+    </style>
+</head>
+<body>
+    <div id="header">دردشة فورية مباشرة</div>
+    <ul id="messages"></ul>
+    <form id="form">
+        <input id="input-name" autocomplete="off" placeholder="اسمك..." required />
+        <input id="input-message" autocomplete="off" placeholder="اكتب رسالتك..." required />
+        <button>إرسال</button>
+    </form>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+
+        const form = document.getElementById('form');
+        const inputMessage = document.getElementById('input-message');
+        const inputName = document.getElementById('input-name');
+        const messages = document.getElementById('messages');
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (inputMessage.value && inputName.value) {
+                const data = {
+                    name: inputName.value,
+                    text: inputMessage.value
+                };
+                socket.emit('chat message', data);
+                inputMessage.value = '';
+            }
+        });
+
+        socket.on('chat message', (data) => {
+            const item = document.createElement('li');
+            
+            if (data.name === inputName.value) {
+                item.className = 'message-outgoing';
+            } else {
+                item.className = 'message-incoming';
+            }
+
+            item.innerHTML = `<span class="message-user">${data.name}</span>${data.text}`;
+            messages.appendChild(item);
+            window.scrollTo(0, document.body.scrollHeight);
+        });
+    </script>
+</body>
+</html>
