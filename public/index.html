@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>تطبيق الدردشة والاتصال الفوري</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Cairo -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { cairo: ['Cairo', 'sans-serif'] },
+                    colors: {
+                        darkBg: '#0b0f19',
+                        cardBg: 'rgba(23, 31, 48, 0.7)',
+                        accentGlow: '#6366f1',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background: radial-gradient(circle at top right, #1e1b4b 0%, #0b0f19 50%, #030712 100%);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Glassmorphism Classes */
+        .glass-panel {
+            background: rgba(17, 24, 39, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .glass-input {
+            background: rgba(31, 41, 55, 0.6);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .glass-input:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        /* Glow Animations */
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 15px rgba(99, 102, 241, 0.4); }
+            50% { box-shadow: 0 0 30px rgba(99, 102, 241, 0.8); }
+        }
+
+        .active-glow {
+            animation: pulseGlow 2s infinite;
+        }
+
+        /* Hide elements dynamically */
+        .hidden-modal {
+            opacity: 0;
+            pointer-events: none;
+            transform: scale(0.95);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .show-modal {
+            opacity: 1;
+            pointer-events: auto;
+            transform: scale(1);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+    </style>
+</head>
+<body class="text-gray-100 flex justify-center items-center h-screen p-0 sm:p-4 selection:bg-indigo-500 selection:text-white">
+
+    <!-- Main Container -->
+    <div class="w-full h-full max-w-5xl sm:h-[92vh] glass-panel sm:rounded-3xl flex flex-col shadow-2xl overflow-hidden relative border-0 sm:border">
+
+        <!-- Top Header Bar -->
+        <header class="px-6 py-4 border-b border-gray-800/80 flex items-center justify-between glass-panel z-10">
+            <div class="flex items-center space-x-3 space-x-reverse">
+                <div class="relative">
+                    <div id="userAvatar" class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                        <i class="fa-solid font-bold text-lg">؟</i>
+                    </div>
+                    <span class="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-500 border-2 border-gray-900 rounded-full"></span>
+                </div>
+                <div>
+                    <h1 id="displayName" class="font-bold text-base text-gray-100 flex items-center gap-2">
+                        زائر رقمي
+                    </h1>
+                    <p id="statusText" class="text-xs text-emerald-400 font-medium flex items-center gap-1">
+                        <span class="inline-block w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping"></span>
+                        متصل الآن
+                    </p>
+                </div>
+            </div>
+
+            <!-- Call Control Action Buttons -->
+            <div class="flex items-center gap-2 sm:gap-3">
+                <button id="btnVoiceCall" title="بدء مكالمة صوتية" class="w-11 h-11 rounded-2xl bg-gray-800/80 hover:bg-indigo-600/30 text-gray-300 hover:text-indigo-400 border border-gray-700/60 hover:border-indigo-500/50 flex items-center justify-center transition-all duration-300 active:scale-95 shadow-md">
+                    <i class="fa-solid fa-phone text-base"></i>
+                </button>
+                <button id="btnVideoCall" title="بدء مكالمة فيديو" class="w-11 h-11 rounded-2xl bg-gray-800/80 hover:bg-purple-600/30 text-gray-300 hover:text-purple-400 border border-gray-700/60 hover:border-purple-500/50 flex items-center justify-center transition-all duration-300 active:scale-95 shadow-md">
+                    <i class="fa-solid fa-video text-base"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Messages Chat Box -->
+        <main id="chatMessages" class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 relative bg-gradient-to-b from-transparent to-black/20">
+            <!-- Welcome System Message -->
+            <div class="flex justify-center my-2">
+                <div class="bg-indigo-950/40 border border-indigo-500/20 text-indigo-300 text-xs px-4 py-2 rounded-full backdrop-blur-md flex items-center gap-2 shadow-inner">
+                    <i class="fa-solid fa-shield-halved text-indigo-400"></i>
+                    المحادثة مشفرة ومؤمنة بالنظام الفوري
+                </div>
+            </div>
+        </main>
+
+        <!-- Typing Indicator Banner -->
+        <div id="typingIndicator" class="px-6 py-1 text-xs text-indigo-400 opacity-0 transition-opacity duration-300 flex items-center gap-2 font-medium">
+            <span class="flex space-x-1 space-x-reverse">
+                <span class="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 0s"></span>
+                <span class="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></span>
+                <span class="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 0.4s"></span>
+            </span>
+            <span id="typingUserText">جاري الكتابة...</span>
+        </div>
+
+        <!-- Message Input Toolbar -->
+        <footer class="p-3 sm:p-4 glass-panel border-t border-gray-800/80">
+            <form id="chatForm" class="flex items-center gap-2">
+                <div class="relative flex-1">
+                    <input id="messageInput" type="text" autocomplete="off" placeholder="اكتب رسالتك الفخمة هنا..." class="w-full glass-input text-gray-100 placeholder-gray-500 text-sm sm:text-base rounded-2xl px-5 py-3.5 outline-none transition-all pr-4 pl-12" required />
+                </div>
+                <button type="submit" class="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold rounded-2xl px-5 sm:px-7 py-3.5 flex items-center justify-center shadow-lg shadow-indigo-600/30 transition-all duration-300 active:scale-95">
+                    <i class="fa-solid fa-paper-plane transform rotate-180 text-base"></i>
+                </button>
+            </form>
+        </footer>
+
+    </div>
+
+    <!-- Login Modal (User Info) -->
+    <div id="loginModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+        <div class="glass-panel border border-indigo-500/30 rounded-3xl p-6 sm:p-8 w-full max-w-md text-center shadow-2xl relative overflow-hidden">
+            <div class="absolute -top-12 -right-12 w-32 h-32 bg-indigo-600/30 rounded-full blur-2xl pointer-events-none"></div>
+            <div class="w-16 h-16 bg-gradient-to-tr from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 text-white text-2xl shadow-lg shadow-indigo-500/40">
+                <i class="fa-solid fa-comments"></i>
+            </div>
+            <h2 class="text-2xl font-bold text-white mb-1">مرحباً بك في المحادثة</h2>
+            <p class="text-gray-400 text-sm mb-6">أدخل اسمك المستعار للبدء بالدردشة والاتصال</p>
+            
+            <form id="loginForm" class="space-y-4">
+                <input id="userNameInput" type="text" placeholder="اسمك المستعار..." class="w-full glass-input text-center text-gray-100 placeholder-gray-500 rounded-2xl px-4 py-3.5 outline-none font-bold text-lg" required />
+                <button type="submit" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold rounded-2xl py-3.5 shadow-lg shadow-indigo-600/40 transition-all duration-300 active:scale-95 text-base">
+                    دخول المحادثة
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Incoming Call Modal -->
+    <div id="incomingCallModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-lg hidden-modal">
+        <div class="glass-panel border border-indigo-500/40 rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center shadow-2xl relative overflow-hidden active-glow">
+            <div class="w-20 h-20 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 text-white text-3xl shadow-xl animate-pulse">
+                <i id="incomingCallIcon" class="fa-solid fa-phone"></i>
+            </div>
+            <h3 id="incomingCallerName" class="text-xl font-bold text-white mb-1">متصل...</h3>
+            <p id="incomingCallType" class="text-indigo-400 text-sm font-medium mb-8">مكالمة واردة جديدة</p>
+
+            <div class="flex items-center justify-center gap-6">
+                <button id="btnAcceptCall" class="w-16 h-16 bg-emerald-600 hover:bg-emerald-500 text-white rounded-full flex items-center justify-center text-xl shadow-lg shadow-emerald-600/40 transition-all active:scale-90">
+                    <i class="fa-solid fa-phone"></i>
+                </button>
+                <button id="btnDeclineCall" class="w-16 h-16 bg-rose-600 hover:bg-rose-500 text-white rounded-full flex items-center justify-center text-xl shadow-lg shadow-rose-600/40 transition-all active:scale-90">
+                    <i class="fa-solid fa-phone-slash"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Video / Audio Call Overlay -->
+    <div id="activeCallOverlay" class="fixed inset-0 z-50 bg-gray-950 flex flex-col justify-between p-4 sm:p-6 hidden-modal transition-all duration-300">
+        <!-- Top Call Controls Info -->
+        <div class="flex items-center justify-between glass-panel px-6 py-3 rounded-2xl z-20">
+            <div class="flex items-center gap-3">
+                <span class="w-3 h-3 bg-emerald-500 rounded-full animate-ping"></span>
+                <span id="callTimer" class="font-bold text-gray-200 text-sm">00:00</span>
+            </div>
+            <span id="activeCallTitle" class="text-sm font-bold text-indigo-300">مكالمة جارية</span>
+        </div>
+
+        <!-- Video Display Container -->
+        <div class="relative flex-1 my-4 rounded-3xl overflow-hidden glass-panel border border-gray-800 flex items-center justify-center bg-black/60">
+            <!-- Remote Video (Full Screen) -->
+            <video id="remoteVideo" autoplay playsinline class="w-full h-full object-cover rounded-3xl"></video>
+            
+            <!-- Local Video (Pip Small Floating Window) -->
+            <div class="absolute bottom-4 left-4 w-28 h-40 sm:w-40 sm:h-56 bg-gray-900 rounded-2xl overflow-hidden border-2 border-indigo-500/50 shadow-2xl z-10">
+                <video id="localVideo" autoplay playsinline muted class="w-full h-full object-cover"></video>
+            </div>
+
+            <!-- Audio-Only Placeholder Icon -->
+            <div id="audioOnlyPlaceholder" class="hidden flex-col items-center justify-center text-center">
+                <div class="w-24 h-24 bg-indigo-600/30 border-2 border-indigo-500 rounded-full flex items-center justify-center text-indigo-400 text-4xl mb-4 animate-pulse">
+                    <i class="fa-solid fa-microphone"></i>
+                </div>
+                <p class="text-gray-300 font-bold">مكالمة صوتية جارية</p>
+            </div>
+        </div>
+
+        <!-- Call Action Toolbar (Mute, Toggle Cam, End Call) -->
+        <div class="flex items-center justify-center gap-4 glass-panel py-4 px-6 rounded-2xl z-20 max-w-md mx-auto w-full">
+            <button id="btnToggleAudio" class="w-12 h-12 rounded-full bg-gray-800 hover:bg-gray-700 text-white flex items-center justify-center text-lg transition-all border border-gray-700">
+                <i class="fa-solid fa-microphone"></i>
+            </button>
+            <button id="btnToggleVideo" class="w-12 h-12 rounded-full bg-gray-800 hover:bg-gray-700 text-white flex items-center justify-center text-lg transition-all border border-gray-700">
+                <i class="fa-solid fa-video"></i>
+            </button>
+            <button id="btnEndCall" class="w-14 h-14 rounded-full bg-rose-600 hover:bg-rose-500 text-white flex items-center justify-center text-xl shadow-lg shadow-rose-600/40 transition-all active:scale-95">
+                <i class="fa-solid fa-phone-slash"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Socket.io JS -->
+    <script src="/socket.io/socket.io.js"></script>
+
+    <!-- App Logic & WebRTC Mechanics -->
+    <script>
+        const socket = io();
+
+        // Audio Context Synthesizer (Sound Effects)
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playTone(freq, type, duration) {
+            try {
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch (e) { console.error(e); }
+        }
+
+        const soundMsgSent = () => { playTone(600, 'sine', 0.15); };
+        const soundMsgReceived = () => { playTone(800, 'sine', 0.2); };
+        
+        let ringtoneInterval;
+        const startRingtone = () => {
+            ringtoneInterval = setInterval(() => {
+                playTone(440, 'triangle', 0.4);
+                setTimeout(() => playTone(554, 'triangle', 0.4), 200);
+            }, 1000);
+        };
+        const stopRingtone = () => { clearInterval(ringtoneInterval); };
+
+        // Global State Variables
+        let currentUser = '';
+        let localStream = null;
+        let peerConnection = null;
+        let incomingCallerData = null;
+        let callTimerInterval = null;
+        let secondsElapsed = 0;
+        let isAudioMuted = false;
+        let isVideoOff = false;
+
+        const rtcConfig = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ]
+        };
+
+        // UI Element Selectors
+        const loginModal = document.getElementById('loginModal');
+        const loginForm = document.getElementById('loginForm');
+        const userNameInput = document.getElementById('userNameInput');
+        const displayName = document.getElementById('displayName');
+        const userAvatar = document.getElementById('userAvatar');
+        const chatMessages = document.getElementById('chatMessages');
+        const chatForm = document.getElementById('chatForm');
+        const messageInput = document.getElementById('messageInput');
+        const typingIndicator = document.getElementById('typingIndicator');
+        const typingUserText = document.getElementById('typingUserText');
+
+        // Call UI Elements
+        const btnVoiceCall = document.getElementById('btnVoiceCall');
+        const btnVideoCall = document.getElementById('btnVideoCall');
+        const incomingCallModal = document.getElementById('incomingCallModal');
+        const incomingCallerName = document.getElementById('incomingCallerName');
+        const incomingCallType = document.getElementById('incomingCallType');
+        const incomingCallIcon = document.getElementById('incomingCallIcon');
+        const btnAcceptCall = document.getElementById('btnAcceptCall');
+        const btnDeclineCall = document.getElementById('btnDeclineCall');
+
+        const activeCallOverlay = document.getElementById('activeCallOverlay');
+        const localVideo = document.getElementById('localVideo');
+        const remoteVideo = document.getElementById('remoteVideo');
+        const audioOnlyPlaceholder = document.getElementById('audioOnlyPlaceholder');
+        const btnToggleAudio = document.getElementById('btnToggleAudio');
+        const btnToggleVideo = document.getElementById('btnToggleVideo');
+        const btnEndCall = document.getElementById('btnEndCall');
+        const callTimer = document.getElementById('callTimer');
+
+        // User Login Setup
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = userNameInput.value.trim();
+            if (name) {
+                currentUser = name;
+                displayName.textContent = currentUser;
+                userAvatar.textContent = currentUser.charAt(0).toUpperCase();
+                loginModal.classList.add('hidden-modal');
+                setTimeout(() => loginModal.remove(), 300);
+
+                // Socket notification for join
+                socket.emit('chat message', {
+                    name: 'النظام',
+                    text: `انضم ${currentUser} إلى المحادثة!`,
+                    isSystem: true
+                });
+            }
+        });
+
+        // Chat Form Submission
+        chatForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const text = messageInput.value.trim();
+            if (text && currentUser) {
+                const data = { name: currentUser, text: text, time: getCurrentTime() };
+                socket.emit('chat message', data);
+                messageInput.value = '';
+                socket.emit('typing', { name: currentUser, isTyping: false });
+            }
+        });
+
+        // Typing logic
+        let typingTimeout;
+        messageInput.addEventListener('input', () => {
+            if (!currentUser) return;
+            socket.emit('typing', { name: currentUser, isTyping: true });
+            clearTimeout(typingTimeout);
+            typingTimeout = setTimeout(() => {
+                socket.emit('typing', { name: currentUser, isTyping: false });
+            }, 2000);
+        });
+
+        // Socket Incoming Events
+        socket.on('chat message', (data) => {
+            appendMessage(data);
+            if (data.name === currentUser) {
+                soundMsgSent();
+            } else if (!data.isSystem) {
+                soundMsgReceived();
+            }
+        });
+
+        socket.on('typing', (data) => {
+            if (data.name !== currentUser && data.isTyping) {
+                typingUserText.textContent = `${data.name} يكتب الآن...`;
+                typingIndicator.style.opacity = '1';
+            } else {
+                typingIndicator.style.opacity = '0';
+            }
+        });
+
+        // Append Messages to UI
+        function appendMessage(data) {
+            const isMe = data.name === currentUser;
+            const msgDiv = document.createElement('div');
+
+            if (data.isSystem) {
+                msgDiv.className = 'flex justify-center my-2';
+                msgDiv.innerHTML = `
+                    <div class="bg-gray-800/60 border border-gray-700/50 text-gray-400 text-xs px-3 py-1.5 rounded-full backdrop-blur-md">
+                        ${data.text}
+                    </div>
+                `;
+            } else {
+                msgDiv.className = `flex ${isMe ? 'justify-start' : 'justify-end'} my-2`;
+                msgDiv.innerHTML = `
+                    <div class="max-w-[80%] sm:max-w-[70%] flex flex-col ${isMe ? 'items-start' : 'items-end'}">
+                        <span class="text-[10px] text-gray-400 mb-1 px-1 font-semibold">${data.name}</span>
+                        <div class="px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-lg backdrop-blur-md ${
+                            isMe 
+                            ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-br-none' 
+                            : 'bg-gray-800/90 border border-gray-700/60 text-gray-100 rounded-bl-none'
+                        }">
+                            ${escapeHTML(data.text)}
+                        </div>
+                        <span class="text-[9px] text-gray-500 mt-1 px-1">${data.time || getCurrentTime()}</span>
+                    </div>
+                `;
+            }
+
+            chatMessages.appendChild(msgDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function getCurrentTime() {
+            const d = new Date();
+            return d.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function escapeHTML(str) {
+            return str.replace(/[&<>'"]/g, 
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+            );
+        }
+
+        // ================= WebRTC & Calling Mechanics ================= //
+
+        btnVoiceCall.addEventListener('click', () => initiateCall('audio'));
+        btnVideoCall.addEventListener('click', () => initiateCall('video'));
+
+        async function initiateCall(type) {
+            if (!currentUser) return alert('الرجاء كتابة اسمك أولاً');
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    audio: true,
+                    video: type === 'video'
+                });
+
+                setupActiveCallUI(type);
+                setupPeerConnection(type);
+
+                localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+                
+                if (type === 'video') localVideo.srcObject = localStream;
+
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+
+                socket.emit('chat message', {
+                    name: 'إشارة المكالمة',
+                    type: 'call-offer',
+                    offer: offer,
+                    callType: type,
+                    callerName: currentUser
+                });
+
+            } catch (err) {
+                alert('عذراً، لم نتمكن من الوصول للميكروفون أو الكاميرا. يرجى إعطاء الصلاحيات.');
+                console.error(err);
+            }
+        }
+
+        // Handle Incoming Call Signal
+        socket.on('chat message', async (data) => {
+            if (data.type === 'call-offer' && data.callerName !== currentUser) {
+                incomingCallerData = data;
+                incomingCallerName.textContent = data.callerName;
+                incomingCallType.textContent = data.callType === 'video' ? 'مكالمة فيديو واردة' : 'مكالمة صوتية واردة';
+                incomingCallIcon.className = data.callType === 'video' ? 'fa-solid fa-video' : 'fa-solid fa-phone';
+                
+                incomingCallModal.classList.remove('hidden-modal');
+                incomingCallModal.classList.add('show-modal');
+                startRingtone();
+            } else if (data.type === 'call-answer' && data.target === currentUser) {
+                if (peerConnection) {
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+                    startCallTimer();
+                }
+            } else if (data.type === 'ice-candidate' && data.target === currentUser) {
+                if (peerConnection && data.candidate) {
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+                }
+            } else if (data.type === 'end-call') {
+                terminateCallUI();
+            }
+        });
+
+        // Accept Call
+        btnAcceptCall.addEventListener('click', async () => {
+            stopRingtone();
+            incomingCallModal.classList.remove('show-modal');
+            incomingCallModal.classList.add('hidden-modal');
+
+            const type = incomingCallerData.callType;
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    audio: true,
+                    video: type === 'video'
+                });
+
+                setupActiveCallUI(type);
+                setupPeerConnection(type);
+
+                localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+                if (type === 'video') localVideo.srcObject = localStream;
+
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(incomingCallerData.offer));
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+
+                socket.emit('chat message', {
+                    name: 'إشارة المكالمة',
+                    type: 'call-answer',
+                    answer: answer,
+                    target: incomingCallerData.callerName
+                });
+
+                startCallTimer();
+
+            } catch (err) {
+                alert('فشل الاتصال بالأجهزة الصوتية أو المرئية.');
+                console.error(err);
+            }
+        });
+
+        // Decline Call
+        btnDeclineCall.addEventListener('click', () => {
+            stopRingtone();
+            incomingCallModal.classList.remove('show-modal');
+            incomingCallModal.classList.add('hidden-modal');
+            socket.emit('chat message', { name: 'إشارة المكالمة', type: 'end-call' });
+        });
+
+        // WebRTC PeerConnection Setup
+        function setupPeerConnection(callType) {
+            peerConnection = new RTCPeerConnection(rtcConfig);
+
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.emit('chat message', {
+                        name: 'إشارة المكالمة',
+                        type: 'ice-candidate',
+                        candidate: event.candidate,
+                        target: incomingCallerData ? incomingCallerData.callerName : null
+                    });
+                }
+            };
+
+            peerConnection.ontrack = (event) => {
+                if (callType === 'video') {
+                    remoteVideo.srcObject = event.streams[0];
+                } else {
+                    remoteVideo.srcObject = event.streams[0];
+                }
+            };
+        }
+
+        // Active Call Controls
+        btnToggleAudio.addEventListener('click', () => {
+            if (localStream) {
+                isAudioMuted = !isAudioMuted;
+                localStream.getAudioTracks()[0].enabled = !isAudioMuted;
+                btnToggleAudio.classList.toggle('bg-rose-600', isAudioMuted);
+            }
+        });
+
+        btnToggleVideo.addEventListener('click', () => {
+            if (localStream && localStream.getVideoTracks().length > 0) {
+                isVideoOff = !isVideoOff;
+                localStream.getVideoTracks()[0].enabled = !isVideoOff;
+                btnToggleVideo.classList.toggle('bg-rose-600', isVideoOff);
+            }
+        });
+
+        btnEndCall.addEventListener('click', () => {
+            socket.emit('chat message', { name: 'إشارة المكالمة', type: 'end-call' });
+            terminateCallUI();
+        });
+
+        function setupActiveCallUI(type) {
+            activeCallOverlay.classList.remove('hidden-modal');
+            activeCallOverlay.classList.add('show-modal');
+            
+            if (type === 'audio') {
+                localVideo.classList.add('hidden');
+                remoteVideo.classList.add('hidden');
+                audioOnlyPlaceholder.classList.remove('hidden');
+                audioOnlyPlaceholder.classList.add('flex');
+            } else {
+                localVideo.classList.remove('hidden');
+                remoteVideo.classList.remove('hidden');
+                audioOnlyPlaceholder.classList.add('hidden');
+                audioOnlyPlaceholder.classList.remove('flex');
+            }
+        }
+
+        function terminateCallUI() {
+            stopRingtone();
+            stopCallTimer();
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+            activeCallOverlay.classList.remove('show-modal');
+            activeCallOverlay.classList.add('hidden-modal');
+            incomingCallModal.classList.remove('show-modal');
+            incomingCallModal.classList.add('hidden-modal');
+        }
+
+        function startCallTimer() {
+            secondsElapsed = 0;
+            callTimerInterval = setInterval(() => {
+                secondsElapsed++;
+                const mins = String(Math.floor(secondsElapsed / 60)).padStart(2, '0');
+                const secs = String(secondsElapsed % 60).padStart(2, '0');
+                callTimer.textContent = `${mins}:${secs}`;
+            }, 1000);
+        }
+
+        function stopCallTimer() {
+            clearInterval(callTimerInterval);
+            callTimer.textContent = '00:00';
+        }
+    </script>
+</body>
+</html>
